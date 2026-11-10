@@ -1,7 +1,7 @@
-export async function requestJson(url, options, signal) {
+export async function requestJson(url, options, signal, fetchImpl = fetch) {
   for (let attempt = 0; attempt < 2; attempt++) {
     signal?.throwIfAborted();
-    const response = await fetch(url, { ...options, signal });
+    const response = await fetchImpl(url, { ...options, signal });
     if (response.ok) return response.json();
     if (attempt === 0 && [429, 500, 502, 503, 504].includes(response.status)) {
       await response.body?.cancel();
@@ -21,28 +21,60 @@ export async function requestJson(url, options, signal) {
     throw Error(`Provider request failed (${response.status})`);
   }
 }
-export function providers(env = process.env) {
+export const DEFAULT_MODEL = "gemini-3.6-flash";
+
+export function providers(env = process.env, fetchImpl = fetch) {
   return {
-    model: async ({ system, messages, tools = [], signal }) =>
-      requestJson(
-        "https://api.anthropic.com/v1/messages",
+    model: async ({ system, messages, signal }) => {
+      if (!env.GEMINI_API_KEY) throw Error("Set GEMINI_API_KEY in .env");
+      const modelId = (env.MODEL_ID || DEFAULT_MODEL).replace(/^models\//, "");
+      if (!/^[a-zA-Z0-9._-]+$/.test(modelId)) throw Error("Invalid MODEL_ID");
+      const result = await requestJson(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`,
         {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            "x-api-key": env.ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
+            "x-goog-api-key": env.GEMINI_API_KEY,
           },
           body: JSON.stringify({
-            model: env.MODEL_ID || "claude-sonnet-4-6",
-            max_tokens: 4096,
-            system,
-            messages,
-            ...(tools.length ? { tools } : {}),
+            systemInstruction: { parts: [{ text: system }] },
+            contents: messages.map((message) => ({
+              role: message.role === "assistant" ? "model" : "user",
+              parts: [{ text: message.content }],
+            })),
+            generationConfig: {
+              responseMimeType: "application/json",
+              maxOutputTokens: 8192,
+            },
           }),
         },
         signal,
-      ),
+        fetchImpl,
+      );
+      const candidate = result.candidates?.[0];
+      if (!candidate || candidate.finishReason !== "STOP") {
+        const reason =
+          candidate?.finishReason ||
+          result.promptFeedback?.blockReason ||
+          "EMPTY_RESPONSE";
+        throw Error(`Gemini did not return a complete answer (${reason})`);
+      }
+      const text = (candidate.content?.parts || [])
+        .filter((part) => !part.thought && typeof part.text === "string")
+        .map((part) => part.text)
+        .join("");
+      if (!text.trim()) throw Error("Gemini returned an empty answer");
+      return {
+        content: [{ type: "text", text }],
+        usage: {
+          input_tokens: result.usageMetadata?.promptTokenCount || 0,
+          output_tokens:
+            (result.usageMetadata?.candidatesTokenCount || 0) +
+            (result.usageMetadata?.thoughtsTokenCount || 0),
+        },
+      };
+    },
     search: async (query, signal, options = {}) => {
       const result = await requestJson(
         "https://api.tavily.com/search",
@@ -63,6 +95,7 @@ export function providers(env = process.env) {
           AbortSignal.timeout(15000),
           ...(signal ? [signal] : []),
         ]),
+        fetchImpl,
       );
       return (result.results || [])
         .filter((x) => /^https?:\/\//.test(x.url))

@@ -63,7 +63,7 @@ export function createApp(store, api) {
         return send(404, { error: "Not found" });
       if (!api)
         return send(503, {
-          error: "Set ANTHROPIC_API_KEY and TAVILY_API_KEY in .env",
+          error: "Set GEMINI_API_KEY and TAVILY_API_KEY in .env",
         });
       let body = "";
       for await (const chunk of req) {
@@ -178,7 +178,7 @@ if (process.argv[1] === new URL(import.meta.url).pathname) {
   await mkdir(dirname(file), { recursive: true });
   const store = new Store(file);
   const api =
-    process.env.ANTHROPIC_API_KEY && process.env.TAVILY_API_KEY
+    process.env.GEMINI_API_KEY && process.env.TAVILY_API_KEY
       ? providers()
       : null;
   const server = createApp(store, api);

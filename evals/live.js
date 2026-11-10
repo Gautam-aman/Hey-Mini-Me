@@ -1,6 +1,6 @@
-import { providers } from "../src/providers.js";
+import { providers, DEFAULT_MODEL } from "../src/providers.js";
 import { research } from "../src/agent.js";
-const missing = ["ANTHROPIC_API_KEY", "TAVILY_API_KEY"].filter(
+const missing = ["GEMINI_API_KEY", "TAVILY_API_KEY"].filter(
   (k) => !process.env[k],
 );
 if (missing.length) {
@@ -17,7 +17,7 @@ const result = await research({
 console.log(
   JSON.stringify(
     {
-      model: process.env.MODEL_ID || "claude-sonnet-4-6",
+      model: process.env.MODEL_ID || DEFAULT_MODEL,
       at: new Date().toISOString(),
       ...result,
     },

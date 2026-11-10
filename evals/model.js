@@ -1,10 +1,10 @@
 import { selectHistory } from "../src/memory.js";
 import { dataset } from "./dataset.js";
-import { providers } from "../src/providers.js";
+import { providers, DEFAULT_MODEL } from "../src/providers.js";
 import { research, parseJson } from "../src/agent.js";
-if (!process.env.ANTHROPIC_API_KEY) {
+if (!process.env.GEMINI_API_KEY) {
   console.error(
-    "ANTHROPIC_API_KEY is required. Uses frozen search fixtures; no Tavily key needed.",
+    "GEMINI_API_KEY is required. Uses frozen search fixtures; no Tavily key needed.",
   );
   process.exit(1);
 }
@@ -63,7 +63,7 @@ console.log(
   JSON.stringify(
     {
       kind: "live-model / frozen synthetic search; model-judged, requires human review",
-      model: process.env.MODEL_ID || "claude-sonnet-4-6",
+      model: process.env.MODEL_ID || DEFAULT_MODEL,
       split,
       variant,
       results,

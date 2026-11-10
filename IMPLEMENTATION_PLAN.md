@@ -47,9 +47,9 @@ Persist completed answer, evidence observations, and derived memory
 
 Start with TypeScript, Node 24, React/Vite, a small Fastify server, SQLite, Zod, Vitest, and Playwright. Pin exact dependency versions and the tested Node version during implementation. A single `npm run dev` starts the UI and API; initialize the local database automatically. No Docker or external database prerequisite.
 
-Use the Anthropic TypeScript SDK initially, a configurable pinned model ID, and Tavily Search. Benchmark two suitable model configurations on the project's own evaluation set before choosing the submission default. Do not claim that a provider or model is “best” without those measurements.
+Use the Gemini REST API, a configurable model ID, and Tavily Search. Benchmark two suitable model configurations on the project's own evaluation set before choosing the submission default. Do not claim that a provider or model is “best” without those measurements.
 
-The Anthropic SDK supports Node, tool use, and streaming. Use its public API directly so request budgets and execution are easy to inspect. [Official TypeScript SDK documentation](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/typescript).
+Use the Gemini REST API directly so request budgets and execution are easy to inspect. [Official Gemini API documentation](https://ai.google.dev/gemini-api/docs).
 
 Tavily Search can return source text within the search response and accepts domain/date controls. This makes a strict search-only implementation practical. Use the Search endpoint only: no hidden browser, crawler, separate extraction API, or URL-fetch tool. [Official Tavily Search API](https://docs.tavily.com/documentation/api-reference/endpoint/search).
 
@@ -272,7 +272,7 @@ EVALS.md
 
 Keep abstractions narrow. One model adapter and one search adapter are enough; do not build a general agent framework.
 
-`.env.example` must enumerate `ANTHROPIC_API_KEY` and `TAVILY_API_KEY`, the only required secrets. Also document optional `MODEL_ID`, `DATABASE_PATH`, and `PORT`; ship a tested model default. No embeddings, telemetry, or hosted database key should be required.
+`.env.example` must enumerate `GEMINI_API_KEY` and `TAVILY_API_KEY`, the only required secrets. Also document optional `MODEL_ID`, `DATABASE_PATH`, and `PORT`; ship a tested model default. No embeddings, telemetry, or hosted database key should be required.
 
 Add scripts for `dev`, `build`, `typecheck`, `test`, `test:e2e`, `eval`, and `eval:live`. Offline tests and fixture evaluations must work without paid API keys. Normal dev mode must not silently replace real providers with fixtures.
 
