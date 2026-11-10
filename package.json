@@ -1,0 +1,25 @@
+{
+  "name": "hey-mini-me",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env src/server.js",
+    "test": "node --test",
+    "eval": "node evals/run.js",
+    "eval:live": "node --env-file-if-exists=.env evals/live.js",
+    "build": "node scripts/check.js",
+    "test:e2e": "playwright test",
+    "eval:model": "node --env-file-if-exists=.env evals/model.js",
+    "eval:ablation": "node evals/ablation.js",
+    "format": "prettier --write src test evals scripts browser public playwright.config.js",
+    "format:check": "prettier --check src test evals scripts browser public playwright.config.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "prettier": "3.9.10"
+  }
+}

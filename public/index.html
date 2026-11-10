@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>Hey Mini Me</title
+  ><style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font: 16px system-ui;
+      background: #f6f7fb;
+      color: #172033;
+      margin: 0;
+    }
+    main {
+      max-width: 920px;
+      margin: auto;
+      padding: 24px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    h1 {
+      margin: 0 auto 0 0;
+      font-size: 24px;
+    }
+    small {
+      color: #68738a;
+    }
+    #messages {
+      min-height: 55vh;
+    }
+    .message {
+      background: white;
+      border: 1px solid #e1e5ef;
+      padding: 20px;
+      border-radius: 14px;
+      margin: 18px 0;
+      line-height: 1.6;
+    }
+    .body,
+    .claim {
+      white-space: pre-wrap;
+    }
+    .user {
+      background: #eaf0ff;
+    }
+    .label {
+      font-size: 12px;
+      color: #68738a;
+      margin-bottom: 8px;
+    }
+    form {
+      display: flex;
+      gap: 8px;
+      position: sticky;
+      bottom: 0;
+      background: #f6f7fb;
+      padding: 16px 0;
+    }
+    textarea {
+      flex: 1;
+      resize: vertical;
+      padding: 12px;
+      font: inherit;
+      border: 1px solid #cbd3e1;
+      border-radius: 10px;
+    }
+    button,
+    select {
+      border: 1px solid #cbd3e1;
+      background: white;
+      border-radius: 8px;
+      padding: 10px;
+      cursor: pointer;
+    }
+    button[type="submit"] {
+      background: #344bd0;
+      color: white;
+    }
+    #status {
+      min-height: 24px;
+      color: #68738a;
+    }
+    a {
+      color: #344bd0;
+    }
+    details {
+      margin-top: 12px;
+      font-size: 14px;
+    }
+    .source {
+      padding: 10px 0;
+      border-top: 1px solid #eee;
+    }
+    .warning {
+      color: #805519;
+    }
+    button:disabled {
+      opacity: 0.5;
+    }
+    summary {
+      cursor: pointer;
+    }
+  </style>
+  <main>
+    <header>
+      <h1>Hey Mini Me</h1>
+      <select id="conversations" aria-label="Conversation"></select
+      ><button id="new">New</button><button id="delete">Delete</button>
+    </header>
+    <p><small>Your discussions, with evidence of what changed.</small></p>
+    <div id="messages" aria-live="polite"></div>
+    <p id="status" role="status"></p>
+    <form>
+      <textarea
+        aria-label="Message"
+        placeholder="Ask a question…"
+        required
+      ></textarea
+      ><button type="submit">Send</button
+      ><button type="button" id="stop" hidden>Stop</button>
+    </form>
+  </main>
+  <script type="module">
+    const $ = (s) => document.querySelector(s),
+      messages = $("#messages"),
+      status = $("#status"),
+      form = $("form"),
+      input = $("textarea"),
+      select = $("#conversations");
+    let conversation = localStorage.getItem("conversation"),
+      controller;
+    function element(tag, text, parent) {
+      const el = document.createElement(tag);
+      if (text !== undefined) el.textContent = text;
+      parent?.append(el);
+      return el;
+    }
+    async function api(path, options) {
+      const r = await fetch(path, options);
+      const data = await r.json();
+      if (!r.ok) throw Error(data.error);
+      return data;
+    }
+    function add(role, text, metadata = {}, id) {
+      const el = element("article", undefined, messages);
+      el.className = "message " + role;
+      if (id) el.id = id;
+      element("div", role === "user" ? "You" : "Mini Me", el).className =
+        "label";
+      element("div", text, el).className = "body";
+      if (metadata.claims?.length) {
+        const details = element("details", undefined, el);
+        element("summary", "Evidence behind this answer", details);
+        for (const c of metadata.claims) {
+          const row = element("p", c.text + " ", details);
+          for (const ref of c.sourceIds) {
+            const source = metadata.sources?.find((s) => s.id === ref);
+            if (source) {
+              const a = element("a", `[${ref}] `, row);
+              a.href = source.url;
+              a.target = "_blank";
+              a.rel = "noopener noreferrer";
+            }
+          }
+        }
+      }
+      if (metadata.sources?.length) {
+        const details = element("details", undefined, el);
+        element(
+          "summary",
+          `${metadata.sources.length} source observations`,
+          details,
+        );
+        for (const s of metadata.sources) {
+          if (!/^https?:\/\//.test(s.url)) continue;
+          const row = element("div", undefined, details);
+          row.className = "source";
+          const a = element("a", s.title || s.url, row);
+          a.href = s.url;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          element(
+            "div",
+            `${s.historical ? "Historical · " : ""}Retrieved ${s.retrieved_at || "unknown"} · Published ${s.published_date || "unknown"}`,
+            row,
+          );
+          element("small", (s.content || "").slice(0, 500), row);
+        }
+      }
+      if (metadata.historyReferences?.length) {
+        const row = element("p", "Earlier discussion: ", el);
+        for (const ref of metadata.historyReferences) {
+          const a = element("a", "view message ", row);
+          a.href = "#" + ref;
+        }
+      }
+      if (metadata.comparisons?.length) {
+        const details = element("details", undefined, el);
+        element("summary", "Calculated price differences", details);
+        for (const c of metadata.comparisons)
+          element(
+            "p",
+            c.status === "unresolved"
+              ? c.reason
+              : `${c.currency} ${c.delta} per seat / ${c.cadence}; team difference ${c.teamDelta}`,
+            details,
+          );
+      }
+      if (metadata.unresolved?.length)
+        element(
+          "p",
+          "Unresolved: " + metadata.unresolved.join("; "),
+          el,
+        ).className = "warning";
+      return el;
+    }
+    async function load() {
+      const conversations = await api("/api/conversations");
+      if (!conversations.some((c) => c.id === conversation))
+        conversation =
+          conversations[0]?.id ||
+          (await api("/api/conversations", { method: "POST" })).id;
+      localStorage.setItem("conversation", conversation);
+      select.replaceChildren();
+      for (const c of await api("/api/conversations")) {
+        const o = element(
+          "option",
+          `${c.title} · ${new Date(c.created_at).toLocaleString()}`,
+          select,
+        );
+        o.value = c.id;
+        o.selected = c.id === conversation;
+      }
+      messages.replaceChildren();
+      for (const m of await api(`/api/conversations/${conversation}/messages`))
+        add(m.role, m.content, { ...m.metadata, sources: m.sources }, m.id);
+    }
+    select.onchange = () => {
+      conversation = select.value;
+      load().catch((e) => (status.textContent = e.message));
+    };
+    $("#new").onclick = async () => {
+      conversation = (await api("/api/conversations", { method: "POST" })).id;
+      await load();
+    };
+    $("#delete").onclick = async () => {
+      if (confirm("Delete this conversation and its saved evidence?")) {
+        await api(`/api/conversations/${conversation}`, { method: "DELETE" });
+        conversation = null;
+        await load();
+      }
+    };
+    $("#stop").onclick = () => controller?.abort();
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const message = input.value.trim();
+      if (!message) return;
+      input.value = "";
+      add("user", message);
+      controller = new AbortController();
+      form.querySelector("[type=submit]").disabled = true;
+      $("#stop").hidden = false;
+      select.disabled = true;
+      $("#new").disabled = true;
+      $("#delete").disabled = true;
+      status.textContent = "Thinking…";
+      try {
+        const r = await fetch(`/api/conversations/${conversation}/chat`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            message,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }),
+          signal: controller.signal,
+        });
+        if (!r.ok) throw Error((await r.json()).error);
+        const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
+        let buffer = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += value;
+          const lines = buffer.split("\n");
+          buffer = lines.pop();
+          for (const line of lines) {
+            if (!line) continue;
+            const event = JSON.parse(line);
+            if (event.type === "progress") status.textContent = event.message;
+            if (event.type === "answer") {
+              add("assistant", event.text, event, event.id);
+              messages.lastChild.scrollIntoView({ block: "end" });
+            }
+            if (event.type === "error") throw Error(event.message);
+          }
+        }
+        status.textContent = "";
+      } catch (e) {
+        status.textContent = e.name === "AbortError" ? "Stopped." : e.message;
+      } finally {
+        form.querySelector("[type=submit]").disabled = false;
+        $("#stop").hidden = true;
+        select.disabled = false;
+        $("#new").disabled = false;
+        $("#delete").disabled = false;
+        input.focus();
+      }
+    };
+    load().catch((e) => (status.textContent = e.message));
+  </script>
+</html>
