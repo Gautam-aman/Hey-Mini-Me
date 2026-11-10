@@ -12,10 +12,10 @@
 
 `evals/dataset.js` defines synthetic conversations in six categories: confirmed price change, missing historical evidence, erroneous earlier advice, publication/release-date confusion, exact recall, and missing history. There are 42 development and 18 held-out cases. Product names and prices are fictional and never injected into ordinary chat.
 
-`npm run eval:model` runs real model calls with frozen search results and a frozen clock. It requires an Google Gemini key. `EVAL_LIMIT` caps cases. `EVAL_VARIANT` selects A (conversation window), B (history retrieval), C (history and baseline evidence), or D (C plus semantic verification). Run the same model and dataset for comparisons. Use `-- --held-out` only after prompt selection. Human-review the output with `evals/rubric.md`; model judgments can be wrong.
+`npm run eval:model` runs real model calls with frozen search results and a frozen clock. It requires a model-provider key. `EVAL_LIMIT` caps cases. `EVAL_VARIANT` selects A (conversation window), B (history retrieval), C (history and baseline evidence), or D (C plus semantic verification). Run the same model and dataset for comparisons. Use `-- --held-out` only after prompt selection. Human-review the output with `evals/rubric.md`; model judgments can be wrong.
 
-`npm run eval:live` tests actual model and search integration. It needs both API keys. It measures a single current query, not historical accuracy or broad provider quality.
+`npm run eval:live` tests actual model and search integration. It needs a selected model-provider key and a Tavily key. It measures a single current query, not historical accuracy or broad provider quality.
 
 ## Current evidence
 
-The 60 deterministic checks pass. All 74 component, Gemini-adapter, and local HTTP tests pass. The Chromium browser test passes. Live provider evaluation cannot run because the workspace has no API keys. Therefore answer groundedness, live change-detection precision/recall, latency percentiles, model choice, and cost remain unmeasured. Do not report offline architecture pass rate as accuracy on hiring evaluation questions.
+The 60 deterministic checks pass. All 80 component, multi-provider adapter, and local HTTP tests pass. The Chromium browser test passes. A single Gemini 2.5 Flash + Tavily live smoke test completed in 37.4 seconds. Anthropic and OpenAI adapters have mock transport tests but have not been verified with live credentials. Answer groundedness, live change-detection precision/recall, latency percentiles, model choice, and cost remain unmeasured. Do not report offline architecture pass rate as accuracy on hiring evaluation questions.

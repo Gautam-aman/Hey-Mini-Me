@@ -13,13 +13,22 @@ test("HTTP conversation lifecycle, unavailable keys, and origin boundary", async
     });
     assert.equal(created.status, 201);
     const { id } = await created.json();
+    const catalog = await (await fetch(base + "/api/providers")).json();
+    assert.equal(catalog.providers.length, 3);
+    assert.equal(catalog.defaultProvider, null);
+    assert.ok(catalog.providers.every((item) => !item.available));
     assert.equal(
       (await fetch(base + `/api/conversations/${id}/messages`)).status,
       200,
     );
     assert.equal(
-      (await fetch(base + `/api/conversations/${id}/chat`, { method: "POST" }))
-        .status,
+      (
+        await fetch(base + `/api/conversations/${id}/chat`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ message: "hello" }),
+        })
+      ).status,
       503,
     );
     assert.equal(

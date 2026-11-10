@@ -1,11 +1,12 @@
 import { selectHistory } from "../src/memory.js";
 import { dataset } from "./dataset.js";
-import { providers, DEFAULT_MODEL } from "../src/providers.js";
+import { providers, selectProvider } from "../src/providers.js";
 import { research, parseJson } from "../src/agent.js";
-if (!process.env.GEMINI_API_KEY) {
-  console.error(
-    "GEMINI_API_KEY is required. Uses frozen search fixtures; no Tavily key needed.",
-  );
+let selected;
+try {
+  selected = selectProvider();
+} catch (error) {
+  console.error(error.message);
   process.exit(1);
 }
 const variant = process.env.EVAL_VARIANT || "D";
@@ -63,7 +64,8 @@ console.log(
   JSON.stringify(
     {
       kind: "live-model / frozen synthetic search; model-judged, requires human review",
-      model: process.env.MODEL_ID || DEFAULT_MODEL,
+      provider: selected.id,
+      model: selected.model,
       split,
       variant,
       results,

@@ -1,10 +1,14 @@
-import { providers, DEFAULT_MODEL } from "../src/providers.js";
+import { providers, selectProvider } from "../src/providers.js";
 import { research } from "../src/agent.js";
-const missing = ["GEMINI_API_KEY", "TAVILY_API_KEY"].filter(
-  (k) => !process.env[k],
-);
-if (missing.length) {
-  console.error("Missing keys: " + missing.join(", "));
+let selected;
+try {
+  selected = selectProvider();
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
+if (!process.env.TAVILY_API_KEY) {
+  console.error("Set TAVILY_API_KEY in .env");
   process.exit(1);
 }
 const result = await research({
@@ -17,7 +21,8 @@ const result = await research({
 console.log(
   JSON.stringify(
     {
-      model: process.env.MODEL_ID || DEFAULT_MODEL,
+      provider: selected.id,
+      model: selected.model,
       at: new Date().toISOString(),
       ...result,
     },

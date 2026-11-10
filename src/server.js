@@ -2,10 +2,10 @@ import http from "node:http";
 import { readFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { Store } from "./store.js";
-import { providers } from "./providers.js";
+import { providers, providerCatalog, selectProvider } from "./providers.js";
 import { research } from "./agent.js";
 import { selectHistory } from "./memory.js";
-export function createApp(store, api) {
+export function createApp(store, api, env = {}) {
   const active = new Set();
   return http.createServer(async (req, res) => {
     const send = (code, value) => {
@@ -35,8 +35,20 @@ export function createApp(store, api) {
       }
       if (req.method === "GET" && path === "/api/conversations")
         return send(200, store.list());
+      if (req.method === "GET" && path === "/api/providers") {
+        let defaultProvider = null;
+        try {
+          defaultProvider = selectProvider(env).id;
+        } catch {}
+        return send(200, { providers: providerCatalog(env), defaultProvider });
+      }
       if (req.method === "GET" && path === "/api/health")
-        return send(200, { ready: !!api });
+        return send(200, {
+          ready:
+            !!api ||
+            (providerCatalog(env).some((item) => item.available) &&
+              !!env.TAVILY_API_KEY),
+        });
       if (req.method === "POST" && path === "/api/conversations")
         return send(201, { id: store.create() });
       const match = path.match(
@@ -61,10 +73,6 @@ export function createApp(store, api) {
         );
       if (req.method !== "POST" || action !== "chat")
         return send(404, { error: "Not found" });
-      if (!api)
-        return send(503, {
-          error: "Set GEMINI_API_KEY and TAVILY_API_KEY in .env",
-        });
       let body = "";
       for await (const chunk of req) {
         body += chunk;
@@ -78,6 +86,20 @@ export function createApp(store, api) {
         input.message.length > 10000
       )
         return send(400, { error: "Invalid message" });
+      let selected = null,
+        requestApi = api;
+      if (!requestApi) {
+        try {
+          selected = selectProvider(env, input.provider || "auto");
+        } catch (error) {
+          return send(503, { error: error.message });
+        }
+        if (!env.TAVILY_API_KEY)
+          return send(503, {
+            error: "Set TAVILY_API_KEY in .env for web search",
+          });
+        requestApi = providers(env, fetch, selected.id);
+      }
       const timezone =
         typeof input.timezone === "string" ? input.timezone : "UTC";
       new Intl.DateTimeFormat("en", { timeZone: timezone });
@@ -131,11 +153,13 @@ export function createApp(store, api) {
           history,
           baseline,
           timezone,
-          ...api,
+          ...requestApi,
           signal: controller.signal,
           onProgress: (message) => emit({ type: "progress", message }),
         });
         controller.signal.throwIfAborted();
+        result.provider = selected?.id || "test";
+        result.model = selected?.model || "test";
         const { sources, ...metadata } = result;
         const answerId = store.add(
           id,
@@ -177,11 +201,7 @@ if (process.argv[1] === new URL(import.meta.url).pathname) {
   const file = process.env.DATABASE_PATH || "./data/chat.sqlite";
   await mkdir(dirname(file), { recursive: true });
   const store = new Store(file);
-  const api =
-    process.env.GEMINI_API_KEY && process.env.TAVILY_API_KEY
-      ? providers()
-      : null;
-  const server = createApp(store, api);
+  const server = createApp(store, null, process.env);
   server.listen(Number(process.env.PORT || 3000), "127.0.0.1", () =>
     console.log(`Chat ready at http://localhost:${process.env.PORT || 3000}`),
   );

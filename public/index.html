@@ -111,6 +111,9 @@
   <main>
     <header>
       <h1>Hey Mini Me</h1>
+      <select id="provider" aria-label="Model provider">
+        <option value="auto">Auto provider</option>
+      </select>
       <select id="conversations" aria-label="Conversation"></select
       ><button id="new">New</button><button id="delete">Delete</button>
     </header>
@@ -152,8 +155,13 @@
       const el = element("article", undefined, messages);
       el.className = "message " + role;
       if (id) el.id = id;
-      element("div", role === "user" ? "You" : "Mini Me", el).className =
-        "label";
+      element(
+        "div",
+        role === "user"
+          ? "You"
+          : `Mini Me${metadata.provider ? " · " + metadata.provider : ""}`,
+        el,
+      ).className = "label";
       element("div", text, el).className = "body";
       if (metadata.claims?.length) {
         const details = element("details", undefined, el);
@@ -221,13 +229,40 @@
         ).className = "warning";
       return el;
     }
+    let providerOptions;
+    const providerSelect = $("#provider");
+    providerSelect.onchange = () =>
+      localStorage.setItem(`provider:${conversation}`, providerSelect.value);
     async function load() {
+      providerOptions = await api("/api/providers");
+      providerSelect.replaceChildren();
+      const automatic = element(
+        "option",
+        `Auto (${providerOptions.defaultProvider || "no key configured"})`,
+        providerSelect,
+      );
+      automatic.value = "auto";
+      for (const item of providerOptions.providers) {
+        const option = element(
+          "option",
+          `${item.label} · ${item.available ? item.model : "key missing"}`,
+          providerSelect,
+        );
+        option.value = item.id;
+        option.disabled = !item.available;
+      }
       const conversations = await api("/api/conversations");
       if (!conversations.some((c) => c.id === conversation))
         conversation =
           conversations[0]?.id ||
           (await api("/api/conversations", { method: "POST" })).id;
       localStorage.setItem("conversation", conversation);
+      const saved = localStorage.getItem(`provider:${conversation}`);
+      providerSelect.value = providerOptions.providers.some(
+        (item) => item.id === saved && item.available,
+      )
+        ? saved
+        : "auto";
       select.replaceChildren();
       for (const c of await api("/api/conversations")) {
         const o = element(
@@ -268,6 +303,7 @@
       form.querySelector("[type=submit]").disabled = true;
       $("#stop").hidden = false;
       select.disabled = true;
+      providerSelect.disabled = true;
       $("#new").disabled = true;
       $("#delete").disabled = true;
       status.textContent = "Thinking…";
@@ -277,6 +313,7 @@
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             message,
+            provider: providerSelect.value,
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: controller.signal,
@@ -308,6 +345,7 @@
         form.querySelector("[type=submit]").disabled = false;
         $("#stop").hidden = true;
         select.disabled = false;
+        providerSelect.disabled = false;
         $("#new").disabled = false;
         $("#delete").disabled = false;
         input.focus();

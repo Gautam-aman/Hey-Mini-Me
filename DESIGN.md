@@ -10,7 +10,7 @@ Answers reference validated source and message IDs. Code calculates price differ
 
 ## Why this architecture
 
-An explicit workflow makes failures inspectable. Native Node JavaScript, HTTP, and SQLite need no runtime dependencies or hosted database. Gemini supplies structured JSON through a REST adapter; Tavily supplies search. Evidence survives restarts; bounded retrieval limits context growth.
+An explicit workflow makes failures inspectable. Native Node JavaScript, HTTP, and SQLite need no runtime dependencies or hosted database. Gemini, Anthropic, and OpenAI share a JSON adapter contract; only providers with configured keys are selectable. Tavily supplies search. Evidence survives restarts; bounded retrieval limits context growth.
 
 Publication dates, observation times, and effective dates are distinct. Matching prices establish sameness at two observations, not an unchanged interval. Missing search results do not prove nothing changed. Incorrect earlier advice should be corrected rather than presented as a recent change.
 
