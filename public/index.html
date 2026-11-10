@@ -217,7 +217,7 @@
             "p",
             c.status === "unresolved"
               ? c.reason
-              : `${c.currency} ${c.delta} per seat / ${c.cadence}; team difference ${c.teamDelta}`,
+              : `${c.currency} ${c.delta} per seat / ${c.cadence}; ${c.teamDelta === null ? "team total not applicable to this billing unit" : "team difference " + c.teamDelta}`,
             details,
           );
       }

@@ -1,3 +1,4 @@
+import { excerpt } from "./evidence.js";
 export async function requestJson(url, options, signal, fetchImpl = fetch) {
   for (let attempt = 0; attempt < 2; attempt++) {
     signal?.throwIfAborted();
@@ -175,6 +176,9 @@ export function providers(
           generationConfig: {
             responseMimeType: "application/json",
             maxOutputTokens: 8192,
+            ...(modelId.startsWith("gemini-2.5")
+              ? { thinkingConfig: { thinkingBudget: 1024 } }
+              : {}),
           },
         }),
       },
@@ -233,7 +237,11 @@ export function providers(
         .map((x) => ({
           title: x.title,
           url: x.url,
-          content: (x.raw_content || x.content || "").slice(0, 6000),
+          content: excerpt(
+            [x.content, x.raw_content].filter(Boolean).join("\n\n"),
+            query,
+            6000,
+          ),
           published_date: x.published_date || null,
           retrieved_at: new Date().toISOString(),
         }));

@@ -1,3 +1,4 @@
+import { challengeCases } from "./challenge-cases.js";
 import { selectHistory } from "../src/memory.js";
 // Deterministic retrieval ablation, not a model answer benchmark.
 const history = Array.from({ length: 150 }, (_, i) => ({
@@ -34,3 +35,27 @@ for (const c of cases) {
     result.retrievalHits++;
 }
 console.log(JSON.stringify(result, null, 2));
+
+const longCases = challengeCases.filter((c) => c.history.length > 40);
+console.log(
+  JSON.stringify(
+    {
+      kind: "challenge-shaped history retrieval",
+      cases: longCases.length,
+      windowHits: longCases.filter((c) =>
+        c.baselineIds.every((id) =>
+          c.history.slice(-20).some((m) => m.id === id),
+        ),
+      ).length,
+      retrievalHits: longCases.filter((c) =>
+        c.baselineIds.every((id) =>
+          selectHistory(c.history, c.query, 40, "2026-11-10T12:00:00Z").some(
+            (m) => m.id === id,
+          ),
+        ),
+      ).length,
+    },
+    null,
+    2,
+  ),
+);

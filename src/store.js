@@ -115,6 +115,7 @@ export class Store {
           turnId,
           JSON.stringify({
             ...source,
+            originMessageId: source.originMessageId || turnId,
             hash: createHash("sha256")
               .update(source.content || "")
               .digest("hex"),

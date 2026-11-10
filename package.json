@@ -16,7 +16,8 @@
     "eval:model": "node --env-file-if-exists=.env evals/model.js",
     "eval:ablation": "node evals/ablation.js",
     "format": "prettier --write src test evals scripts browser public playwright.config.js",
-    "format:check": "prettier --check src test evals scripts browser public playwright.config.js"
+    "format:check": "prettier --check src test evals scripts browser public playwright.config.js",
+    "eval:challenge": "node --env-file-if-exists=.env evals/challenge.js"
   },
   "devDependencies": {
     "@playwright/test": "1.65.0",

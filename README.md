@@ -30,6 +30,7 @@ npm run test:e2e         # Chromium UI test; install browser below if needed
 npx playwright install chromium
 npm run eval:live        # Real search + selected model; model key and Tavily key
 npm run eval:model       # Model evaluation on frozen synthetic search fixtures
+npm run eval:challenge   # Six distinct multi-turn regressions; real model, frozen search
 ```
 
 `eval:model` requires the selected model provider’s key and spends API credits. Use `EVAL_LIMIT=1` for a small trial. Set `EVAL_VARIANT=A|B|C|D` to compare window-only context, retrieved history, history plus stored evidence, and evidence plus semantic verification. Pass `-- --held-out` only after freezing prompts. See [EVALS.md](EVALS.md) for interpretation and [DESIGN.md](DESIGN.md) for architecture and tradeoffs.

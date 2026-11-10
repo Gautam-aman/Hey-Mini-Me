@@ -13,15 +13,26 @@ export function comparePrices(before, after, seats = 1) {
       status: "unresolved",
       reason: "Missing baseline or current evidence",
     };
-  for (const key of dimensions)
+  for (const key of dimensions) {
+    const valid = (value) =>
+      key === "seatMinimum"
+        ? Number.isInteger(value) && value >= 1
+        : typeof value === "string" &&
+          value.trim().length > 0 &&
+          !/^(unknown|null|undefined|n\/a|unspecified|not known)$/i.test(
+            value.trim(),
+          );
+    if (!valid(before[key]) || !valid(after[key]))
+      return { status: "unresolved", reason: `Missing or invalid ${key}` };
     if (
       before[key] === undefined ||
       after[key] === undefined ||
       before[key] !== after[key]
     )
       return { status: "unresolved", reason: `Incompatible or missing ${key}` };
+  }
   if (
-    !Number.isFinite(seats) ||
+    !Number.isInteger(seats) ||
     seats < 1 ||
     !Number.isFinite(before.value) ||
     before.value < 0 ||
@@ -33,7 +44,9 @@ export function comparePrices(before, after, seats = 1) {
   return {
     status: delta === 0 ? "same_at_observations" : "confirmed_change",
     delta,
-    teamDelta: Math.round(delta * seats * 100) / 100,
+    teamDelta: /per[- ]seat|per[- ]user/i.test(after.usage)
+      ? Math.round(delta * Math.max(seats, after.seatMinimum) * 100) / 100
+      : null,
     currency: after.currency,
     cadence: after.cadence,
   };
@@ -51,7 +64,9 @@ export function validateAnswer(answer, sources, messageIds) {
       !claim.sourceIds.length ||
       claim.sourceIds.some((id) => !ids.has(id))
     )
-      throw Error("A factual claim has an invalid source");
+      throw Error(
+        `A factual claim has an invalid source. Each claims entry needs nonempty sourceIds from: ${[...ids].join(", ") || "none"}. Uncertainty and missing-evidence statements belong in unresolved, not claims. Invalid entry: ${JSON.stringify(claim).slice(0, 1200)}`,
+      );
   }
   if (answer.historyReferences.some((id) => !messageIds.includes(id)))
     throw Error("Unknown history reference");

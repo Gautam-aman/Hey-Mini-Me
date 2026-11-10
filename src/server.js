@@ -1,3 +1,4 @@
+import { selectBaseline, excerpt } from "./evidence.js";
 import http from "node:http";
 import { readFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
@@ -136,22 +137,20 @@ export function createApp(store, api, env = {}) {
           if (matches.has(m.id) && !history.includes(m)) history.unshift(m);
         // Bound context by bytes, retaining newest turns and selected original excerpts.
         history = history.slice(-50);
-        let remaining = 60000;
+        const perMessageBudget = Math.floor(
+          60000 / Math.max(1, history.length),
+        );
         history = history
           .map((m) => {
-            const content = m.content.slice(0, Math.min(5000, remaining));
-            remaining -= content.length;
+            const content = excerpt(m.content, input.message, perMessageBudget);
             return { ...m, content };
           })
           .filter((m) => m.content);
-        const baseline = history
-          .filter((m) => m.role === "assistant")
-          .flatMap((m) => store.evidence(m.id))
-          .slice(-15);
         const result = await research({
           query: input.message,
           history,
-          baseline,
+          loadBaseline: (ids) =>
+            selectBaseline(all, ids, (messageId) => store.evidence(messageId)),
           timezone,
           ...requestApi,
           signal: controller.signal,

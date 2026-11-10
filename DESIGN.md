@@ -4,9 +4,9 @@
 
 “Has anything changed since Tuesday?” requires both the original discussion and current evidence. The agent preserves original messages and source observations separately: an earlier assistant assertion is a claim to check, not proof of historical truth.
 
-A request follows **retrieve → plan → search → compare → verify**. SQLite full-text search, local calendar dates, and neighbouring messages recover relevant context within the selected conversation. A structured plan identifies the baseline, entities, and queries; ambiguous history can trigger clarification. Web search is the sole external capability. Search returns source excerpts directly.
+A request follows **retrieve → plan → search → compare → verify**. SQLite full-text search, local calendar dates, and neighbouring messages recover relevant context within the selected conversation. A structured plan identifies baseline messages, entities, and queries; evidence is loaded from that exchange. Ambiguous history can trigger clarification. Web search is the sole external capability. Search returns source text; query-relevant passages retain pricing beyond navigation headers.
 
-Answers reference validated source and message IDs. Code calculates price differences only when product, plan, currency, region, billing cadence, seat minimum, and usage terms match. A model verifier checks research claims against excerpts; one repair is allowed before falling back to explicit uncertainty. Completed answers, evidence, and derived indexes are committed atomically.
+Answers reference validated source and message IDs. Price differences require known, matching product, plan, currency, region, billing cadence, seat minimum, and usage terms. A model verifier checks research claims against excerpts; one repair is allowed before falling back to explicit uncertainty. Completed answers, evidence, and derived indexes are committed atomically.
 
 ## Why this architecture
 
@@ -14,7 +14,7 @@ An explicit workflow makes failures inspectable. Native Node JavaScript, HTTP, a
 
 Publication dates, observation times, and effective dates are distinct. Matching prices establish sameness at two observations, not an unchanged interval. Missing search results do not prove nothing changed. Incorrect earlier advice should be corrected rather than presented as a recent change.
 
-Research permits twelve search actions across two rounds, four concurrent requests, and a ninety-second overall deadline. Identical in-flight queries share work. Cancellation aborts provider requests and prevents incomplete answers from being saved. The interface streams progress before releasing checked prose.
+Research permits twelve search actions across two rounds, four concurrent requests, and a ninety-second overall deadline. Identical in-flight queries share work. Cancellation aborts provider requests and prevents incomplete answers from being saved. Ordinary chat can finish in one model call. The interface streams progress before releasing checked prose.
 
 ## Alternatives considered and rejected
 
@@ -22,7 +22,7 @@ Multiple agents add coordination overhead without a demonstrated benefit for one
 
 ## Evidence and limits
 
-Offline checks cover retrieval, comparisons, references, failures, persistence, and browser behavior. Sixty synthetic conversations support development/held-out evaluations and ablations. Live quality, latency, and cost remain unmeasured without API keys. Lexical retrieval can miss paraphrases; excerpts may be stale or incomplete, and model verification can err. The application is local and single-user, with no monitoring between turns.
+Offline checks cover retrieval, comparisons, references, failures, persistence, and browser behavior. Sixty synthetic conversations support development/held-out evaluations and ablations. One live smoke test completed in 37.4 seconds. New multi-turn checks exposed citation failures and then hit provider limits; live quality remains unproven. Lexical retrieval can miss paraphrases; excerpts may be stale or incomplete, and model verification can err. The application is local and single-user, with no monitoring between turns.
 
 ## What I would do with another week
 
