@@ -96,3 +96,49 @@ test("provider selection is sent with the message and remembered after reload", 
   );
   await expect(page.locator("#messages")).toContainText("Mini Me · openai");
 });
+
+test("welcome, keyboard composer and mobile layout work without horizontal overflow", async ({
+  page,
+}) => {
+  await page.route("**/api/conversations/*/chat", (route) =>
+    route.fulfill({
+      contentType: "application/x-ndjson",
+      body:
+        JSON.stringify({
+          type: "answer",
+          id: "friendly-answer",
+          text: "Here’s what I found: **two useful options**. Let’s compare the details.",
+          claims: [],
+          sources: [],
+          historyReferences: [],
+        }) + "\n",
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await expect(page.locator("#welcome")).toBeVisible();
+  await page.screenshot({
+    path: "test-results/ui-desktop.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: /Explore my options/ }).click();
+  const input = page.getByRole("textbox", { name: "Message" });
+  await expect(input).toHaveValue(/CRM/);
+  await input.press("Shift+Enter");
+  await expect(input).toHaveValue(/\n/);
+  await input.press("Enter");
+  await expect(page.locator("#friendly-answer strong")).toHaveText(
+    "two useful options",
+  );
+  await expect(page.locator("#welcome")).toBeHidden();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    page.getByRole("button", { name: "Send", exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({ path: "test-results/ui-mobile.png", fullPage: true });
+});

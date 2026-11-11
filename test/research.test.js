@@ -31,7 +31,9 @@ test("verification rejection yields an honest fallback after repair fails", asyn
       });
     },
   });
-  assert.match(result.text, /could not verify/);
+  assert.equal(result.claims.length, 0);
+  assert.ok(result.unresolved.length > 0);
+  assert.notEqual(result.text, "Unproven answer");
   assert.equal(count, 5);
 });
 test("duplicate searches share one upstream request", async () => {

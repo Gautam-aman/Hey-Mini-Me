@@ -1,356 +1,892 @@
 <!doctype html>
 <html lang="en">
-  <meta charset="utf-8" /><meta
-    name="viewport"
-    content="width=device-width,initial-scale=1"
-  /><title>Hey Mini Me</title
-  ><style>
-    * {
-      box-sizing: border-box;
-    }
-    body {
-      font: 16px system-ui;
-      background: #f6f7fb;
-      color: #172033;
-      margin: 0;
-    }
-    main {
-      max-width: 920px;
-      margin: auto;
-      padding: 24px;
-    }
-    header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-    h1 {
-      margin: 0 auto 0 0;
-      font-size: 24px;
-    }
-    small {
-      color: #68738a;
-    }
-    #messages {
-      min-height: 55vh;
-    }
-    .message {
-      background: white;
-      border: 1px solid #e1e5ef;
-      padding: 20px;
-      border-radius: 14px;
-      margin: 18px 0;
-      line-height: 1.6;
-    }
-    .body,
-    .claim {
-      white-space: pre-wrap;
-    }
-    .user {
-      background: #eaf0ff;
-    }
-    .label {
-      font-size: 12px;
-      color: #68738a;
-      margin-bottom: 8px;
-    }
-    form {
-      display: flex;
-      gap: 8px;
-      position: sticky;
-      bottom: 0;
-      background: #f6f7fb;
-      padding: 16px 0;
-    }
-    textarea {
-      flex: 1;
-      resize: vertical;
-      padding: 12px;
-      font: inherit;
-      border: 1px solid #cbd3e1;
-      border-radius: 10px;
-    }
-    button,
-    select {
-      border: 1px solid #cbd3e1;
-      background: white;
-      border-radius: 8px;
-      padding: 10px;
-      cursor: pointer;
-    }
-    button[type="submit"] {
-      background: #344bd0;
-      color: white;
-    }
-    #status {
-      min-height: 24px;
-      color: #68738a;
-    }
-    a {
-      color: #344bd0;
-    }
-    details {
-      margin-top: 12px;
-      font-size: 14px;
-    }
-    .source {
-      padding: 10px 0;
-      border-top: 1px solid #eee;
-    }
-    .warning {
-      color: #805519;
-    }
-    button:disabled {
-      opacity: 0.5;
-    }
-    summary {
-      cursor: pointer;
-    }
-  </style>
-  <main>
-    <header>
-      <h1>Hey Mini Me</h1>
-      <select id="provider" aria-label="Model provider">
-        <option value="auto">Auto provider</option>
-      </select>
-      <select id="conversations" aria-label="Conversation"></select
-      ><button id="new">New</button><button id="delete">Delete</button>
-    </header>
-    <p><small>Your discussions, with evidence of what changed.</small></p>
-    <div id="messages" aria-live="polite"></div>
-    <p id="status" role="status"></p>
-    <form>
-      <textarea
-        aria-label="Message"
-        placeholder="Ask a question…"
-        required
-      ></textarea
-      ><button type="submit">Send</button
-      ><button type="button" id="stop" hidden>Stop</button>
-    </form>
-  </main>
-  <script type="module">
-    const $ = (s) => document.querySelector(s),
-      messages = $("#messages"),
-      status = $("#status"),
-      form = $("form"),
-      input = $("textarea"),
-      select = $("#conversations");
-    let conversation = localStorage.getItem("conversation"),
-      controller;
-    function element(tag, text, parent) {
-      const el = document.createElement(tag);
-      if (text !== undefined) el.textContent = text;
-      parent?.append(el);
-      return el;
-    }
-    async function api(path, options) {
-      const r = await fetch(path, options);
-      const data = await r.json();
-      if (!r.ok) throw Error(data.error);
-      return data;
-    }
-    function add(role, text, metadata = {}, id) {
-      const el = element("article", undefined, messages);
-      el.className = "message " + role;
-      if (id) el.id = id;
-      element(
-        "div",
-        role === "user"
-          ? "You"
-          : `Mini Me${metadata.provider ? " · " + metadata.provider : ""}`,
-        el,
-      ).className = "label";
-      element("div", text, el).className = "body";
-      if (metadata.claims?.length) {
-        const details = element("details", undefined, el);
-        element("summary", "Evidence behind this answer", details);
-        for (const c of metadata.claims) {
-          const row = element("p", c.text + " ", details);
-          for (const ref of c.sourceIds) {
-            const source = metadata.sources?.find((s) => s.id === ref);
-            if (source) {
-              const a = element("a", `[${ref}] `, row);
-              a.href = source.url;
-              a.target = "_blank";
-              a.rel = "noopener noreferrer";
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Hey Mini Me — a little clarity</title>
+    <style>
+      :root {
+        --paper: #faf9f5;
+        --ink: #243c34;
+        --muted: #68766f;
+        --line: #e0e5dc;
+        --green: #264e3e;
+        --wash: #edf1e8;
+        --accent: #be6f49;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          15px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+      button,
+      select,
+      textarea {
+        font: inherit;
+      }
+      button,
+      select {
+        cursor: pointer;
+      }
+      button {
+        transition:
+          background 0.15s,
+          transform 0.15s;
+      }
+      button:hover {
+        transform: translateY(-1px);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+        transform: none;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      button:focus-visible,
+      select:focus-visible,
+      textarea:focus-visible,
+      a:focus-visible {
+        outline: 3px solid #91ad8d;
+        outline-offset: 3px;
+      }
+      a {
+        color: var(--green);
+        text-underline-offset: 3px;
+      }
+      .app {
+        display: grid;
+        grid-template-columns: 242px minmax(0, 1fr);
+        min-height: 100dvh;
+      }
+      .sidebar {
+        background: #eff1ea;
+        border-right: 1px solid var(--line);
+        padding: 30px 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 25px;
+        position: sticky;
+        top: 0;
+        height: 100dvh;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .mark {
+        display: grid;
+        place-items: center;
+        background: var(--green);
+        color: #fff;
+        width: 34px;
+        height: 34px;
+        border-radius: 11px;
+        font:
+          24px Georgia,
+          serif;
+      }
+      .brand h1 {
+        font-size: 17px;
+        letter-spacing: -0.5px;
+        margin: 0;
+      }
+      .eyebrow {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1.6px;
+        font-weight: 650;
+        color: var(--muted);
+      }
+      .new-chat {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        background: var(--green);
+        color: white;
+        border: 0;
+        border-radius: 10px;
+        padding: 12px 15px;
+      }
+      .new-chat span:last-child {
+        font-size: 22px;
+        line-height: 1;
+      }
+      .sidebar label {
+        display: block;
+        margin-bottom: 9px;
+      }
+      .sidebar select {
+        width: 100%;
+        background: #fafbf7;
+        border: 1px solid #d5ded1;
+        border-radius: 8px;
+        padding: 10px;
+        font-size: 12px;
+        color: var(--ink);
+        text-overflow: ellipsis;
+      }
+      .sidebar-note {
+        margin-top: auto;
+        border-top: 1px solid #d5ded1;
+        padding-top: 20px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .sidebar-note strong {
+        display: block;
+        color: var(--ink);
+        font-weight: 500;
+        margin-bottom: 4px;
+      }
+      .workspace {
+        min-width: 0;
+      }
+      .topbar {
+        height: 78px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 38px;
+        gap: 12px;
+      }
+      .topbar-title {
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .topbar small {
+        color: var(--muted);
+        font-size: 11px;
+        display: block;
+      }
+      .delete {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12px;
+        padding: 7px 12px;
+      }
+      .delete:hover {
+        background: #f3e8e0;
+        color: #8e4c32;
+      }
+      .chat-shell {
+        max-width: 860px;
+        margin: auto;
+        padding: 0 40px;
+        display: flex;
+        flex-direction: column;
+        min-height: calc(100dvh - 78px);
+      }
+      .welcome {
+        padding: 72px 0 42px;
+        max-width: 700px;
+      }
+      .welcome .orb {
+        display: grid;
+        place-items: center;
+        width: 48px;
+        height: 48px;
+        background: #e8eddf;
+        color: var(--green);
+        border-radius: 16px;
+        font: 32px Georgia;
+        margin-bottom: 25px;
+      }
+      .welcome h2 {
+        font:
+          normal clamp(35px, 4vw, 49px)/1.15 Georgia,
+          serif;
+        letter-spacing: -1.6px;
+        margin: 12px 0 18px;
+      }
+      .welcome h2 em {
+        font-weight: normal;
+        color: #6f8b65;
+      }
+      .welcome p {
+        color: var(--muted);
+        max-width: 440px;
+        line-height: 1.7;
+      }
+      .starters {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-top: 32px;
+      }
+      .starter {
+        background: #fffefa;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 18px;
+        text-align: left;
+        color: var(--ink);
+        font-size: 13px;
+        line-height: 1.5;
+        min-height: 125px;
+      }
+      .starter:hover {
+        border-color: #a6b79e;
+        background: #f1f4eb;
+      }
+      .starter span {
+        display: block;
+        color: var(--accent);
+        margin-bottom: 13px;
+        font-size: 19px;
+      }
+      .starter small {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        margin-top: 6px;
+      }
+      #messages {
+        padding: 14px 0;
+        flex: 1;
+        min-width: 0;
+      }
+      .message {
+        margin: 28px 0;
+        line-height: 1.8;
+        overflow-wrap: anywhere;
+        scroll-margin-top: 25px;
+      }
+      .label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        letter-spacing: 0.2px;
+        font-weight: 600;
+        margin-bottom: 11px;
+        color: var(--muted);
+      }
+      .assistant .label:before {
+        content: "m";
+        background: var(--green);
+        color: white;
+        border-radius: 7px;
+        display: grid;
+        place-items: center;
+        width: 23px;
+        height: 23px;
+        font: 18px Georgia;
+      }
+      .body {
+        white-space: pre-wrap;
+      }
+      .body code {
+        background: #edf0e8;
+        border-radius: 4px;
+        padding: 2px 5px;
+        font-size: 13px;
+      }
+      .user {
+        max-width: 85%;
+        margin-left: auto;
+        background: #eaf0e4;
+        border: 1px solid #e0e8d9;
+        border-radius: 17px 17px 4px 17px;
+        padding: 15px 20px;
+      }
+      .user .label {
+        margin-bottom: 3px;
+      }
+      .assistant {
+        padding: 0 2px 20px;
+        border-bottom: 1px solid var(--line);
+      }
+      details {
+        margin-top: 14px;
+        font-size: 13px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #f5f6f0;
+        padding: 10px 14px;
+      }
+      summary {
+        cursor: pointer;
+        color: #4d6554;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      details p {
+        margin: 12px 0;
+      }
+      .source {
+        padding: 12px 0;
+        border-top: 1px solid var(--line);
+        margin-top: 10px;
+      }
+      .source a {
+        font-weight: 550;
+      }
+      .source div {
+        font-size: 10px;
+        color: var(--muted);
+        margin: 3px 0;
+      }
+      .source small {
+        color: #667067;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .warning {
+        color: #856044;
+        background: #f6efe3;
+        border-left: 2px solid #c7a373;
+        padding: 10px 14px;
+        font-size: 13px;
+        border-radius: 0 8px 8px 0;
+      }
+      .composer-dock {
+        position: sticky;
+        bottom: 0;
+        background: linear-gradient(transparent, var(--paper) 15%);
+        padding: 18px 0 20px;
+        margin-top: auto;
+      }
+      #status {
+        color: var(--muted);
+        font-size: 12px;
+        min-height: 22px;
+        margin: 0 8px 8px;
+      }
+      #status:empty {
+        margin-bottom: 0;
+      }
+      #status.busy:before {
+        content: "";
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        background: #7d986e;
+        border-radius: 50%;
+        margin: 0 8px 1px 0;
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      .composer {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        background: #fffefa;
+        border: 1px solid #d3dcce;
+        border-radius: 17px;
+        padding: 14px;
+        box-shadow: 0 6px 24px #23382908;
+      }
+      .composer:focus-within {
+        border-color: #93a889;
+        box-shadow: 0 0 0 3px #eaf0e3;
+      }
+      .composer textarea {
+        border: 0;
+        outline: none;
+        resize: none;
+        background: transparent;
+        color: var(--ink);
+        padding: 5px 3px;
+        min-height: 42px;
+        max-height: 180px;
+        width: 100%;
+        line-height: 1.6;
+      }
+      .composer textarea:focus-visible {
+        outline: none;
+      }
+      .composer textarea::placeholder {
+        color: #8a958b;
+      }
+      .send,
+      .stop {
+        border: 0;
+        border-radius: 10px;
+        background: var(--green);
+        color: #fff;
+        padding: 10px 17px;
+        font-size: 13px;
+        flex-shrink: 0;
+      }
+      .stop {
+        background: #80583f;
+      }
+      .composer-foot {
+        display: flex;
+        justify-content: space-between;
+        margin: 8px 8px 0;
+        font-size: 10px;
+        color: #899287;
+      }
+      .composer-foot span:first-child {
+        color: #70836a;
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.25;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation: none !important;
+          transition: none !important;
+          scroll-behavior: auto !important;
+        }
+      }
+      @media (max-width: 760px) {
+        .app {
+          grid-template-columns: 1fr;
+        }
+        .sidebar {
+          height: auto;
+          position: static;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+          padding: 14px 18px;
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 14px;
+        }
+        .sidebar .brand {
+          grid-column: 1;
+        }
+        .sidebar .new-chat {
+          width: auto;
+          gap: 20px;
+        }
+        .sidebar .config {
+          min-width: 0;
+        }
+        .sidebar-note {
+          display: none;
+        }
+        .topbar {
+          height: 62px;
+          padding: 0 20px;
+        }
+        .chat-shell {
+          padding: 0 20px;
+          min-height: calc(100dvh - 220px);
+        }
+        .welcome {
+          padding: 35px 0 20px;
+        }
+        .welcome h2 {
+          font-size: 37px;
+        }
+        .starters {
+          grid-template-columns: 1fr;
+          margin-top: 24px;
+          gap: 8px;
+        }
+        .starter {
+          min-height: 0;
+          padding: 12px 15px;
+        }
+        .starter span {
+          display: inline;
+          margin-right: 10px;
+          font-size: 16px;
+        }
+        .starter small {
+          display: none;
+        }
+        .user {
+          max-width: 94%;
+        }
+        .composer-foot span:last-child {
+          display: none;
+        }
+      }
+      @media (max-width: 380px) {
+        .brand h1 {
+          font-size: 15px;
+        }
+        .mark {
+          width: 28px;
+          height: 28px;
+        }
+        .sidebar {
+          padding: 12px;
+        }
+        .chat-shell {
+          padding: 0 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="mark" aria-hidden="true">m</span>
+          <h1>Hey Mini Me</h1>
+        </div>
+        <button id="new" class="new-chat" aria-label="New">
+          <span>New conversation</span><span aria-hidden="true">+</span>
+        </button>
+        <div class="config">
+          <label class="eyebrow" for="conversations">Your conversations</label
+          ><select id="conversations" aria-label="Conversation"></select>
+        </div>
+        <div class="config">
+          <label class="eyebrow" for="provider">Think with</label
+          ><select id="provider" aria-label="Model provider">
+            <option value="auto">Auto provider</option>
+          </select>
+        </div>
+        <div class="sidebar-note">
+          <strong>A little context goes a long way.</strong>Your conversations
+          are saved here, so you can pick up where you left off.
+        </div>
+      </aside>
+      <div class="workspace">
+        <header class="topbar">
+          <div>
+            <div class="topbar-title">
+              A little clarity, whenever you need it.
+            </div>
+            <small>Chat, explore, and check what’s changed.</small>
+          </div>
+          <button id="delete" class="delete">Delete</button>
+        </header>
+        <main class="chat-shell">
+          <section id="welcome" class="welcome">
+            <div class="orb" aria-hidden="true">✳</div>
+            <div class="eyebrow">Room for a good question</div>
+            <h2>What’s on your <em>mind?</em></h2>
+            <p>
+              A fresh question or an old thread. Let’s figure it out together,
+              with sources you can check.
+            </p>
+            <div class="starters">
+              <button
+                class="starter"
+                data-prompt="Help me compare CRM tools for a 20-person sales team."
+              >
+                <span aria-hidden="true">↗</span>Explore my options<small
+                  >Make a decision with a little more context.</small
+                ></button
+              ><button
+                class="starter"
+                data-prompt="What did we discuss earlier in this conversation?"
+              >
+                <span aria-hidden="true">↶</span>Pick up a conversation<small
+                  >Bring an earlier discussion back into focus.</small
+                ></button
+              ><button
+                class="starter"
+                data-prompt="Help me check whether the pricing of a tool I use has changed."
+              >
+                <span aria-hidden="true">⌕</span>Check what’s changed<small
+                  >Find out what’s new, and what still holds.</small
+                >
+              </button>
+            </div>
+          </section>
+          <div id="messages" aria-live="polite"></div>
+          <div class="composer-dock">
+            <p id="status" role="status"></p>
+            <form class="composer">
+              <textarea
+                rows="1"
+                aria-label="Message"
+                placeholder="Ask away, or pick up where we left off…"
+                required
+              ></textarea
+              ><button type="submit" class="send">Send</button
+              ><button type="button" class="stop" id="stop" hidden>Stop</button>
+            </form>
+            <div class="composer-foot">
+              <span>A thoughtful answer starts with a question.</span
+              ><span>Enter to send · Shift + Enter for a new line</span>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+    <script type="module">
+      const $ = (s) => document.querySelector(s),
+        messages = $("#messages"),
+        status = $("#status"),
+        form = $("form"),
+        input = $("textarea"),
+        select = $("#conversations");
+      let conversation = localStorage.getItem("conversation"),
+        controller;
+      function element(tag, text, parent) {
+        const el = document.createElement(tag);
+        if (text !== undefined) el.textContent = text;
+        parent?.append(el);
+        return el;
+      }
+      function friendlyError(message) {
+        if (message.includes("(429)"))
+          return "The model provider has reached a usage limit. Try again later, or choose another configured provider.";
+        if (message.includes("(401)"))
+          return "That provider couldn’t accept the API key. Check your .env settings, then restart the server.";
+        if (message.includes("Failed to fetch"))
+          return "I couldn’t reach the server. Check that npm run dev is still running, then try again.";
+        return message;
+      }
+      async function api(path, options) {
+        const r = await fetch(path, options);
+        const data = await r.json();
+        if (!r.ok) throw Error(data.error);
+        return data;
+      }
+      function add(role, text, metadata = {}, id) {
+        $("#welcome").hidden = true;
+        const el = element("article", undefined, messages);
+        el.className = "message " + role;
+        if (id) el.id = id;
+        element(
+          "div",
+          role === "user"
+            ? "You"
+            : `Mini Me${metadata.provider ? " · " + metadata.provider : ""}`,
+          el,
+        ).className = "label";
+        const body = element("div", undefined, el);
+        body.className = "body";
+        for (const part of text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g)) {
+          if (part.startsWith("**") && part.endsWith("**"))
+            element("strong", part.slice(2, -2), body);
+          else if (part.startsWith("`") && part.endsWith("`"))
+            element("code", part.slice(1, -1), body);
+          else body.append(document.createTextNode(part));
+        }
+        if (metadata.claims?.length) {
+          const details = element("details", undefined, el);
+          element("summary", "Evidence behind this answer", details);
+          for (const c of metadata.claims) {
+            const row = element("p", c.text + " ", details);
+            for (const ref of c.sourceIds) {
+              const source = metadata.sources?.find((s) => s.id === ref);
+              if (source) {
+                const a = element("a", `[${ref}] `, row);
+                a.href = source.url;
+                a.target = "_blank";
+                a.rel = "noopener noreferrer";
+              }
             }
           }
         }
-      }
-      if (metadata.sources?.length) {
-        const details = element("details", undefined, el);
-        element(
-          "summary",
-          `${metadata.sources.length} source observations`,
-          details,
-        );
-        for (const s of metadata.sources) {
-          if (!/^https?:\/\//.test(s.url)) continue;
-          const row = element("div", undefined, details);
-          row.className = "source";
-          const a = element("a", s.title || s.url, row);
-          a.href = s.url;
-          a.target = "_blank";
-          a.rel = "noopener noreferrer";
+        if (metadata.sources?.length) {
+          const details = element("details", undefined, el);
           element(
-            "div",
-            `${s.historical ? "Historical · " : ""}Retrieved ${s.retrieved_at || "unknown"} · Published ${s.published_date || "unknown"}`,
-            row,
-          );
-          element("small", (s.content || "").slice(0, 500), row);
-        }
-      }
-      if (metadata.historyReferences?.length) {
-        const row = element("p", "Earlier discussion: ", el);
-        for (const ref of metadata.historyReferences) {
-          const a = element("a", "view message ", row);
-          a.href = "#" + ref;
-        }
-      }
-      if (metadata.comparisons?.length) {
-        const details = element("details", undefined, el);
-        element("summary", "Calculated price differences", details);
-        for (const c of metadata.comparisons)
-          element(
-            "p",
-            c.status === "unresolved"
-              ? c.reason
-              : `${c.currency} ${c.delta} per seat / ${c.cadence}; ${c.teamDelta === null ? "team total not applicable to this billing unit" : "team difference " + c.teamDelta}`,
+            "summary",
+            `${metadata.sources.length} sources to explore`,
             details,
           );
-      }
-      if (metadata.unresolved?.length)
-        element(
-          "p",
-          "Unresolved: " + metadata.unresolved.join("; "),
-          el,
-        ).className = "warning";
-      return el;
-    }
-    let providerOptions;
-    const providerSelect = $("#provider");
-    providerSelect.onchange = () =>
-      localStorage.setItem(`provider:${conversation}`, providerSelect.value);
-    async function load() {
-      providerOptions = await api("/api/providers");
-      providerSelect.replaceChildren();
-      const automatic = element(
-        "option",
-        `Auto (${providerOptions.defaultProvider || "no key configured"})`,
-        providerSelect,
-      );
-      automatic.value = "auto";
-      for (const item of providerOptions.providers) {
-        const option = element(
-          "option",
-          `${item.label} · ${item.available ? item.model : "key missing"}`,
-          providerSelect,
-        );
-        option.value = item.id;
-        option.disabled = !item.available;
-      }
-      const conversations = await api("/api/conversations");
-      if (!conversations.some((c) => c.id === conversation))
-        conversation =
-          conversations[0]?.id ||
-          (await api("/api/conversations", { method: "POST" })).id;
-      localStorage.setItem("conversation", conversation);
-      const saved = localStorage.getItem(`provider:${conversation}`);
-      providerSelect.value = providerOptions.providers.some(
-        (item) => item.id === saved && item.available,
-      )
-        ? saved
-        : "auto";
-      select.replaceChildren();
-      for (const c of await api("/api/conversations")) {
-        const o = element(
-          "option",
-          `${c.title} · ${new Date(c.created_at).toLocaleString()}`,
-          select,
-        );
-        o.value = c.id;
-        o.selected = c.id === conversation;
-      }
-      messages.replaceChildren();
-      for (const m of await api(`/api/conversations/${conversation}/messages`))
-        add(m.role, m.content, { ...m.metadata, sources: m.sources }, m.id);
-    }
-    select.onchange = () => {
-      conversation = select.value;
-      load().catch((e) => (status.textContent = e.message));
-    };
-    $("#new").onclick = async () => {
-      conversation = (await api("/api/conversations", { method: "POST" })).id;
-      await load();
-    };
-    $("#delete").onclick = async () => {
-      if (confirm("Delete this conversation and its saved evidence?")) {
-        await api(`/api/conversations/${conversation}`, { method: "DELETE" });
-        conversation = null;
-        await load();
-      }
-    };
-    $("#stop").onclick = () => controller?.abort();
-    form.onsubmit = async (e) => {
-      e.preventDefault();
-      const message = input.value.trim();
-      if (!message) return;
-      input.value = "";
-      add("user", message);
-      controller = new AbortController();
-      form.querySelector("[type=submit]").disabled = true;
-      $("#stop").hidden = false;
-      select.disabled = true;
-      providerSelect.disabled = true;
-      $("#new").disabled = true;
-      $("#delete").disabled = true;
-      status.textContent = "Thinking…";
-      try {
-        const r = await fetch(`/api/conversations/${conversation}/chat`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            message,
-            provider: providerSelect.value,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          }),
-          signal: controller.signal,
-        });
-        if (!r.ok) throw Error((await r.json()).error);
-        const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
-        let buffer = "";
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += value;
-          const lines = buffer.split("\n");
-          buffer = lines.pop();
-          for (const line of lines) {
-            if (!line) continue;
-            const event = JSON.parse(line);
-            if (event.type === "progress") status.textContent = event.message;
-            if (event.type === "answer") {
-              add("assistant", event.text, event, event.id);
-              messages.lastChild.scrollIntoView({ block: "end" });
-            }
-            if (event.type === "error") throw Error(event.message);
+          for (const s of metadata.sources) {
+            if (!/^https?:\/\//.test(s.url)) continue;
+            const row = element("div", undefined, details);
+            row.className = "source";
+            const a = element("a", s.title || s.url, row);
+            a.href = s.url;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            element(
+              "div",
+              `${s.historical ? "Historical · " : ""}Retrieved ${s.retrieved_at || "unknown"} · Published ${s.published_date || "unknown"}`,
+              row,
+            );
+            element("small", (s.content || "").slice(0, 500), row);
           }
         }
-        status.textContent = "";
-      } catch (e) {
-        status.textContent = e.name === "AbortError" ? "Stopped." : e.message;
-      } finally {
-        form.querySelector("[type=submit]").disabled = false;
-        $("#stop").hidden = true;
-        select.disabled = false;
-        providerSelect.disabled = false;
-        $("#new").disabled = false;
-        $("#delete").disabled = false;
-        input.focus();
+        if (metadata.historyReferences?.length) {
+          const row = element("p", "Earlier discussion: ", el);
+          for (const ref of metadata.historyReferences) {
+            const a = element("a", "view message ", row);
+            a.href = "#" + ref;
+          }
+        }
+        if (metadata.comparisons?.length) {
+          const details = element("details", undefined, el);
+          element("summary", "Calculated price differences", details);
+          for (const c of metadata.comparisons)
+            element(
+              "p",
+              c.status === "unresolved"
+                ? c.reason
+                : `${c.currency} ${c.delta} per seat / ${c.cadence}; ${c.teamDelta === null ? "team total not applicable to this billing unit" : "team difference " + c.teamDelta}`,
+              details,
+            );
+        }
+        if (metadata.unresolved?.length)
+          element(
+            "p",
+            "Still worth checking: " + metadata.unresolved.join("; "),
+            el,
+          ).className = "warning";
+        return el;
       }
-    };
-    load().catch((e) => (status.textContent = e.message));
-  </script>
+      let providerOptions;
+      const providerSelect = $("#provider");
+      providerSelect.onchange = () =>
+        localStorage.setItem(`provider:${conversation}`, providerSelect.value);
+      async function load() {
+        providerOptions = await api("/api/providers");
+        providerSelect.replaceChildren();
+        const automatic = element(
+          "option",
+          `Auto (${providerOptions.defaultProvider || "no key configured"})`,
+          providerSelect,
+        );
+        automatic.value = "auto";
+        for (const item of providerOptions.providers) {
+          const option = element(
+            "option",
+            `${item.label} · ${item.available ? item.model : "key missing"}`,
+            providerSelect,
+          );
+          option.value = item.id;
+          option.disabled = !item.available;
+        }
+        const conversations = await api("/api/conversations");
+        if (!conversations.some((c) => c.id === conversation))
+          conversation =
+            conversations[0]?.id ||
+            (await api("/api/conversations", { method: "POST" })).id;
+        localStorage.setItem("conversation", conversation);
+        const saved = localStorage.getItem(`provider:${conversation}`);
+        providerSelect.value = providerOptions.providers.some(
+          (item) => item.id === saved && item.available,
+        )
+          ? saved
+          : "auto";
+        select.replaceChildren();
+        for (const c of await api("/api/conversations")) {
+          const o = element(
+            "option",
+            `${c.title} · ${new Date(c.created_at).toLocaleString()}`,
+            select,
+          );
+          o.value = c.id;
+          o.selected = c.id === conversation;
+        }
+        messages.replaceChildren();
+        $("#welcome").hidden = false;
+        for (const m of await api(
+          `/api/conversations/${conversation}/messages`,
+        ))
+          add(m.role, m.content, { ...m.metadata, sources: m.sources }, m.id);
+      }
+      select.onchange = () => {
+        conversation = select.value;
+        load().catch((e) => (status.textContent = e.message));
+      };
+      $("#new").onclick = async () => {
+        conversation = (await api("/api/conversations", { method: "POST" })).id;
+        await load();
+      };
+      $("#delete").onclick = async () => {
+        if (confirm("Delete this conversation and its saved evidence?")) {
+          await api(`/api/conversations/${conversation}`, { method: "DELETE" });
+          conversation = null;
+          await load();
+        }
+      };
+      $("#stop").onclick = () => controller?.abort();
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const message = input.value.trim();
+        if (!message || form.querySelector("[type=submit]").disabled) return;
+        input.value = "";
+        input.style.height = "auto";
+        add("user", message);
+        controller = new AbortController();
+        form.querySelector("[type=submit]").disabled = true;
+        $("#stop").hidden = false;
+        select.disabled = true;
+        providerSelect.disabled = true;
+        $("#new").disabled = true;
+        $("#delete").disabled = true;
+        status.classList.add("busy");
+        status.textContent = "Let me take a look…";
+        try {
+          const r = await fetch(`/api/conversations/${conversation}/chat`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              message,
+              provider: providerSelect.value,
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            }),
+            signal: controller.signal,
+          });
+          if (!r.ok) throw Error((await r.json()).error);
+          const reader = r.body
+            .pipeThrough(new TextDecoderStream())
+            .getReader();
+          let buffer = "";
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += value;
+            const lines = buffer.split("\n");
+            buffer = lines.pop();
+            for (const line of lines) {
+              if (!line) continue;
+              const event = JSON.parse(line);
+              if (event.type === "progress") status.textContent = event.message;
+              if (event.type === "answer") {
+                add("assistant", event.text, event, event.id);
+                messages.lastChild.scrollIntoView({ block: "end" });
+              }
+              if (event.type === "error") throw Error(event.message);
+            }
+          }
+          status.textContent = "";
+        } catch (e) {
+          status.textContent =
+            e.name === "AbortError"
+              ? "Stopped. Take your time — I’m here when you’re ready."
+              : friendlyError(e.message);
+        } finally {
+          status.classList.remove("busy");
+          form.querySelector("[type=submit]").disabled = false;
+          $("#stop").hidden = true;
+          select.disabled = false;
+          providerSelect.disabled = false;
+          $("#new").disabled = false;
+          $("#delete").disabled = false;
+          input.focus();
+        }
+      };
+      for (const button of document.querySelectorAll("[data-prompt]"))
+        button.onclick = () => {
+          input.value = button.dataset.prompt;
+          input.dispatchEvent(new Event("input"));
+          input.focus();
+        };
+      input.oninput = () => {
+        input.style.height = "auto";
+        input.style.height = Math.min(input.scrollHeight, 180) + "px";
+      };
+      input.onkeydown = (event) => {
+        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+          event.preventDefault();
+          if (!form.querySelector("[type=submit]").disabled)
+            form.requestSubmit();
+        }
+      };
+      load().catch((e) => (status.textContent = e.message));
+    </script>
+  </body>
 </html>
